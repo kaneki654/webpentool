@@ -84,7 +84,7 @@ def choice():
         os.system('python tools/spider.py')
     elif cho == '5':
         os.system('python tools/larva.py')
-    elif cho == 'X':
+    elif cho == 'x':
         pull_latest_changes()
     else:
         print("unknown choice")
