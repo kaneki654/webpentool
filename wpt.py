@@ -64,7 +64,7 @@ def choice():
     elif cho == '4':
         os.system('python tools/spider.py')
     elif cho == '5':
-        os.system('python tools/larva.py)
+        os.system('python tools/larva.py')
     else:
         print("unknown choice")
         choice()
