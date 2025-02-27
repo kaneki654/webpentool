@@ -22,6 +22,7 @@ def mainzap():
     (2) PATHFINDER
     (3) SQLMAP
     (4) SPIDER
+    (5) LARVA
     ''')
 
 def choice():
@@ -62,6 +63,8 @@ def choice():
         check_sql()
     elif cho == '4':
         os.system('python tools/spider.py')
+    elif cho == '5':
+        os.system('python tools/larva.py)
     else:
         print("unknown choice")
         choice()
