@@ -3,6 +3,24 @@ import requests
 import os
 import platform
 from oth.instsqlmap import *
+import subprocess
+
+REPO_DIR = os.path.dirname(os.path.abspath(__file__))
+GITHUB_REPO_URL = "https://github.com/kaneki654/webpentool.git"
+BRANCH = "main"
+
+def pull_latest_changes():
+    try:
+        os.chdir(REPO_DIR)
+        if not os.path.isdir(os.path.join(REPO_DIR, ".git")):
+            print("Error: This is not a Git repository.")
+            return
+        subprocess.run(["git", "pull", "origin", BRANCH], check=True)
+        print("Successfully pulled the latest changes.")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to pull changes: {e}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -23,6 +41,7 @@ def mainzap():
     (3) SQLMAP
     (4) SPIDER
     (5) LARVA
+    (X) UPDATE
     ''')
 
 def choice():
@@ -65,6 +84,8 @@ def choice():
         os.system('python tools/spider.py')
     elif cho == '5':
         os.system('python tools/larva.py')
+    elif cho == 'X':
+        pull_latest_changes()
     else:
         print("unknown choice")
         choice()
