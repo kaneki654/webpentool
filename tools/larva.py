@@ -1,4 +1,3 @@
-#updated by goju(1)
 import requests
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
@@ -25,6 +24,7 @@ SUPPORTED_ENGINES = [
     "surfwax", "trendiction", "wisenut", "yebol"
 ]
 
+# Proxy functions (unchanged)
 def get_proxyscrape_proxies():
     """Fetches proxies from ProxyScrape."""
     try:
@@ -102,6 +102,7 @@ def get_random_proxy(proxy_source="proxyscrape"):
         print(f"No proxies available from {proxy_source}.")
         return None
 
+# Dork formatting and search functions (unchanged)
 def format_dork(query, site=None, engine="google"):
     """
     Formats the dork based on the search engine.
@@ -420,88 +421,77 @@ def search_dorks(query, site=None, engine="google", use_proxy=True, proxy_source
                 print("Max retries reached. Giving up.")
                 return None
 
-def extract_form_data(url, retries=3):
-    """
-    Extracts form data from a given URL without using a proxy.
-    """
+# New functions for DebugBar and sensitive data extraction
+def fetch_page_content(url):
+    """Fetch the HTML content of the page."""
     headers = {
-        "User-Agent": ua.random  # Randomize User-Agent
+        "User-Agent": ua.random
     }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.text
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to fetch page content. Error: {e}")
+        return None
 
-    for attempt in range(retries):
-        try:
-            print(f"Fetching form data from {url} (Attempt {attempt + 1})...")
-            response = requests.get(url, headers=headers, timeout=15)  # Increased timeout
-            response.raise_for_status()
+def parse_debugbar_data(html):
+    """Parse the HTML to extract DebugBar data."""
+    soup = BeautifulSoup(html, "html.parser")
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+    # Look for DebugBar-specific elements (adjust selectors as needed)
+    debugbar = soup.find("div", class_="phpdebugbar")
+    if not debugbar:
+        print("DebugBar not found in the HTML.")
+        return None
 
-            # Find the login form
-            form = soup.find('form')
-            if not form:
-                print("No form found on the page.")
-                return None
+    # Extract DebugBar content
+    debugbar_content = debugbar.get_text(strip=True)
+    print("DebugBar Content:")
+    print(debugbar_content)
+    return debugbar_content
 
-            # Extract form action URL
-            action = form.get('action')
-            if not action:
-                action = url  # If no action, use the current URL
+def detect_login_endpoints(html):
+    """Detect /login endpoints in the HTML."""
+    soup = BeautifulSoup(html, "html.parser")
 
-            # Extract form fields
-            inputs = form.find_all('input')
-            form_data = {}
-            for input_tag in inputs:
-                name = input_tag.get('name')
-                value = input_tag.get('value', '')
-                if name:
-                    form_data[name] = value
+    # Look for forms with action containing /login
+    login_forms = []
+    for form in soup.find_all("form"):
+        action = form.get("action", "").lower()
+        if "/login" in action or "login" in action:
+            login_forms.append(form)
 
-            return action, form_data
-        except requests.exceptions.RequestException as e:
-            print(f"Attempt {attempt + 1} failed. Error: {e}")
-            if attempt < retries - 1:
-                print("Retrying...")
-                time.sleep(5)  # Increased delay before retrying
-            else:
-                print("Max retries reached. Giving up.")
-                return None
+    # Look for links pointing to /login
+    login_links = []
+    for link in soup.find_all("a", href=True):
+        href = link["href"].lower()
+        if "/login" in href or "login" in href:
+            login_links.append(link)
 
+    return login_forms, login_links
 
-def submit_login_form(action_url, form_data, retries=3):
-    """
-    Submits the login form without using a proxy.
-    """
-    headers = {
-        "User-Agent": ua.random,  # Randomize User-Agent
-        "Referer": action_url     # Set Referer to the form URL
-    }
+def extract_sensitive_data(html):
+    """Extract sensitive data (e.g., passwords, emails, usernames) from the HTML."""
+    soup = BeautifulSoup(html, "html.parser")
 
-    for attempt in range(retries):
-        try:
-            print(f"Submitting form to {action_url} (Attempt {attempt + 1})...")
-            response = requests.post(action_url, data=form_data, headers=headers, timeout=15)  # Increased timeout
-            response.raise_for_status()
+    # Look for input fields related to authentication
+    sensitive_data = {}
+    for input_tag in soup.find_all("input"):
+        input_name = input_tag.get("name", "").lower()
+        input_type = input_tag.get("type", "").lower()
+        input_value = input_tag.get("value", "")
 
-            print(f"Response from POST {action_url}: {response.status_code}")
-            print("Response Content:")
-            print(response.text)
-            return
-        except requests.exceptions.RequestException as e:
-            print(f"Attempt {attempt + 1} failed. Error: {e}")
-            if attempt < retries - 1:
-                print("Retrying...")
-                time.sleep(5)  # Increased delay before retrying
-            else:
-                print("Max retries reached. Giving up.")
-                return
+        if "password" in input_name or input_type == "password":
+            sensitive_data["password"] = input_value
+        elif "email" in input_name or input_type == "email":
+            sensitive_data["email"] = input_value
+        elif "username" in input_name or "user" in input_name:
+            sensitive_data["username"] = input_value
 
-# Global variable to store proxies from different sources
-proxies = {
-    "proxyscrape": [],
-    "freeproxylists": [],
-    "file": []  # Proxies loaded from a file
-}
+    return sensitive_data
 
+# Main function (unchanged)
 def main():
     global proxies
     query = "php debugbar"  # Base query without dork syntax
@@ -566,26 +556,35 @@ def main():
         print("Invalid choice. Exiting.")
         return
 
-    # Extract form data from the selected site
-    result = extract_form_data(selected_url)  # Proxy is NOT used here
-    if not result:
+    # Fetch and parse the selected URL
+    html = fetch_page_content(selected_url)
+    if not html:
         return
 
-    action_url, form_data = result
+    # Parse DebugBar data
+    debugbar_data = parse_debugbar_data(html)
+    if debugbar_data:
+        print("\nDebugBar data extracted successfully.")
 
-    # Display form data
-    print("\nForm Data:")
-    for key, value in form_data.items():
-        print(f"{key}: {value}")
+    # Detect /login endpoints
+    login_forms, login_links = detect_login_endpoints(html)
+    if login_forms:
+        print("\nDetected login forms:")
+        for form in login_forms:
+            print(f"Form action: {form.get('action')}")
+    if login_links:
+        print("\nDetected login links:")
+        for link in login_links:
+            print(f"Link href: {link['href']}")
 
-    # Update form data with user input
-    for key in form_data:
-        if key.lower() not in ['csrf', 'token', '_token']:  # Skip CSRF tokens
-            form_data[key] = input(f"Enter value for {key}: ")
-
-    # Submit the form
-    print("\nSubmitting the form...")
-    submit_login_form(action_url, form_data)  # Proxy is NOT used here
+    # Extract sensitive data
+    sensitive_data = extract_sensitive_data(html)
+    if sensitive_data:
+        print("\nExtracted sensitive data:")
+        for key, value in sensitive_data.items():
+            print(f"{key}: {value}")
+    else:
+        print("\nNo sensitive data found.")
 
 if __name__ == "__main__":
     main()
