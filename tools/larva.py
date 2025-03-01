@@ -1,4 +1,4 @@
-# updated code by goju
+#updated by goju(1)
 import requests
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
@@ -25,24 +25,81 @@ SUPPORTED_ENGINES = [
     "surfwax", "trendiction", "wisenut", "yebol"
 ]
 
-def get_random_proxy():
-    """
-    Fetches a random proxy using the ProxyScrape API.
-    """
+def get_proxyscrape_proxies():
+    """Fetches proxies from ProxyScrape."""
     try:
-        # Fetch proxies from ProxyScrape
-        response = requests.get("https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all")
+        response = requests.get(
+            "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all",
+            timeout=10
+        )
         response.raise_for_status()
-
-        # Parse the list of proxies
         proxies = response.text.strip().split("\r\n")
-        if proxies:
-            return random.choice(proxies)
-        else:
-            print("No proxies available from ProxyScrape.")
-            return None
+        print(f"Fetched {len(proxies)} proxies from ProxyScrape.")
+        return proxies
     except Exception as e:
         print(f"Failed to fetch proxies from ProxyScrape. Error: {e}")
+        return []
+
+def get_freeproxylists_proxies():
+    """Fetches proxies from FreeProxyLists."""
+    try:
+        response = requests.get("https://free-proxy-list.net/", headers={'User-Agent': ua.random}, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        table = soup.find("table", {"id": "proxylisttable"})
+        proxies = []
+        for row in table.find_all("tr")[1:]:
+            cells = row.find_all("td")
+            if len(cells) >= 2:
+                ip = cells[0].text.strip()
+                port = cells[1].text.strip()
+                proxies.append(f"{ip}:{port}")
+        print(f"Fetched {len(proxies)} proxies from FreeProxyLists.")
+        return proxies
+    except Exception as e:
+        print(f"Failed to fetch proxies from FreeProxyLists. Error: {e}")
+        return []
+
+def get_proxies_from_file(filepath="proxies.txt"):
+    """Loads proxies from a text file."""
+    try:
+        with open(filepath, "r") as f:
+            proxies = [line.strip() for line in f if line.strip()]
+        print(f"Loaded {len(proxies)} proxies from file {filepath}.")
+        return proxies
+    except FileNotFoundError:
+        print(f"Proxy file not found: {filepath}")
+        return []
+    except Exception as e:
+        print(f"Error reading proxy file: {e}")
+        return []
+
+def get_random_proxy(proxy_source="proxyscrape"):
+    """
+    Fetches a random proxy from the specified source.
+    """
+    global proxies  # Access the global proxies list
+
+    if proxy_source == "proxyscrape":
+        if not proxies["proxyscrape"]:  # Refetch if empty
+            proxies["proxyscrape"] = get_proxyscrape_proxies()
+        proxy_list = proxies["proxyscrape"]
+    elif proxy_source == "freeproxylists":
+        if not proxies["freeproxylists"]:  # Refetch if empty
+            proxies["freeproxylists"] = get_freeproxylists_proxies()
+        proxy_list = proxies["freeproxylists"]
+    elif proxy_source == "file":
+        if not proxies["file"]:  # Refetch if empty
+            proxies["file"] = get_proxies_from_file()
+        proxy_list = proxies["file"]
+    else:
+        print("Invalid proxy source specified.")
+        return None
+
+    if proxy_list:
+        return random.choice(proxy_list)
+    else:
+        print(f"No proxies available from {proxy_source}.")
         return None
 
 def format_dork(query, site=None, engine="google"):
@@ -217,13 +274,11 @@ def format_dork(query, site=None, engine="google"):
 
     return dork
 
-def search_dorks(query, site=None, engine="google", retries=3):
+def search_dorks(query, site=None, engine="google", use_proxy=True, proxy_source="proxyscrape", retries=3):
     """
-    Searches for dorks using the specified search engine, using proxies.
+    Searches for dorks using the specified search engine, with optional proxy support.
     """
     dork = format_dork(query, site, engine)
-
-    # Define search engine URLs
     search_urls = {
         "google": f"https://www.google.com/search?q={dork}",
         "duckduckgo": f"https://html.duckduckgo.com/html/?q={dork}",
@@ -306,53 +361,50 @@ def search_dorks(query, site=None, engine="google", retries=3):
         "wisenut": f"https://www.wisenut.com/search?q={dork}",
         "yebol": f"https://www.yebol.com/search?q={dork}"
     }
-
-    url = search_urls.get(engine, search_urls["google"])  # Default to Google if engine is not found
+    url = search_urls.get(engine, search_urls["google"])
 
     headers = {
-        "User-Agent": ua.random  # Randomize User-Agent
+        "User-Agent": ua.random
     }
 
     for attempt in range(retries):
-        # Fetch a new proxy on each retry
-        proxy = get_random_proxy()
-        proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"} if proxy else None
+        proxy = None
+        proxies = None
+
+        if use_proxy:
+            proxy = get_random_proxy(proxy_source)
+            proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"} if proxy else None
 
         try:
-            print(f"Fetching results from {engine.capitalize()} using proxy: {proxy} (Attempt {attempt + 1})...")
-            response = requests.get(url, headers=headers, proxies=proxies, timeout=15)  # Increased timeout
-            response.raise_for_status()  # Raise an error for bad status codes
+            print(
+                f"Fetching results from {engine.capitalize()} (Attempt {attempt + 1}), using proxy: {proxy if use_proxy else 'No Proxy'}")
+            response = requests.get(url, headers=headers, proxies=proxies, timeout=15)
+            response.raise_for_status()
 
-            # Check if Google is showing a CAPTCHA
             if "captcha" in response.text.lower() or "sorry" in response.text.lower():
-                print(f"{engine.capitalize()} is showing a CAPTCHA. Switching to DuckDuckGo.")
+                print(f"{engine.capitalize()} is showing a CAPTCHA.")
                 return None
 
             soup = BeautifulSoup(response.text, 'html.parser')
-
             results = []
+
             if engine == "duckduckgo":
-                # Parse DuckDuckGo results
                 for link in soup.find_all('a', class_='result__url'):
                     href = link.get('href')
                     if href:
                         results.append(href)
             elif engine == "google":
-                # Parse Google results
                 for link in soup.find_all('a'):
                     href = link.get('href')
                     if href and "url?q=" in href and not "webcache" in href:
                         results.append(href.split("url?q=")[1].split("&")[0])
             elif engine == "bing":
-                # Parse Bing results
                 for link in soup.find_all('a'):
                     href = link.get('href')
                     if href and "http" in href and not "bing.com" in href:
-                        # Filter out irrelevant Bing links
                         if "go.microsoft.com" not in href:
                             results.append(href)
             elif engine in ["yahoo", "ask", "aol", "yandex", "baidu", "ecosia", "qwant", "startpage", "dogpile", "swisscows", "gibiru", "metager", "searx", "mojeek", "gigablast", "exalead", "lycos", "hotbot", "infospace", "webcrawler", "ixquick", "sogou", "naver", "daum", "rambler", "sapo", "virgilio", "alice", "najdi", "seznam", "biglobe", "goo", "onet", "szukacz", "pchome", "kvasir", "eniro", "arcor", "tiscali", "mynet", "ekolay", "search", "sweetsearch", "millionshort", "searchlock", "givero", "oscobo", "zapmeta", "entireweb", "findwide", "info", "myallsearch", "searchresults", "searchtheweb", "searchya", "sputnik", "teoma", "wow", "yippy", "zoohoo", "blekko", "clusty", "cuil", "faroo", "gazelle", "guruji", "hakia", "icerocket", "kosmix", "mamma", "peekyou", "quintura", "scour", "surfwax", "trendiction", "wisenut", "yebol"]:
-                # Parse results for other search engines
                 for link in soup.find_all('a'):
                     href = link.get('href')
                     if href and "http" in href:
@@ -362,8 +414,8 @@ def search_dorks(query, site=None, engine="google", retries=3):
         except requests.exceptions.RequestException as e:
             print(f"Attempt {attempt + 1} failed. Error: {e}")
             if attempt < retries - 1:
-                print("Fetching a new proxy and retrying...")
-                time.sleep(5)  # Increased delay before retrying
+                print("Retrying...")
+                time.sleep(5)
             else:
                 print("Max retries reached. Giving up.")
                 return None
@@ -443,20 +495,59 @@ def submit_login_form(action_url, form_data, retries=3):
                 print("Max retries reached. Giving up.")
                 return
 
+# Global variable to store proxies from different sources
+proxies = {
+    "proxyscrape": [],
+    "freeproxylists": [],
+    "file": []  # Proxies loaded from a file
+}
+
 def main():
+    global proxies
     query = "php debugbar"  # Base query without dork syntax
     site = input("Enter site (optional): ").strip()
+
+    # Choose proxy source
+    print("\nChoose a proxy source:")
+    print("1. ProxyScrape (default)")
+    print("2. FreeProxyLists")
+    print("3. Load from file (proxies.txt)")
+    print("4. No proxy")
+
+    proxy_choice = input("Enter your choice (1-4): ").strip()
+
+    use_proxy = True
+    proxy_source = "proxyscrape"  # Default
+    if proxy_choice == "2":
+        proxy_source = "freeproxylists"
+    elif proxy_choice == "3":
+        proxy_source = "file"
+    elif proxy_choice == "4":
+        use_proxy = False
+        print("Proxy usage disabled.")
+    else:
+        print("Using ProxyScrape as default.")
+
+    if use_proxy:
+        # Initial fetch of proxies
+        if proxy_source == "proxyscrape":
+            proxies["proxyscrape"] = get_proxyscrape_proxies()
+        elif proxy_source == "freeproxylists":
+            proxies["freeproxylists"] = get_freeproxylists_proxies()
+        elif proxy_source == "file":
+            proxies["file"] = get_proxies_from_file()
 
     # Try each search engine in order
     for engine in SUPPORTED_ENGINES:
         print(f"\nTrying {engine.capitalize()}...")
-        results = search_dorks(query, site, engine)  # Proxy is now managed inside the function
+        results = search_dorks(query, site, engine, use_proxy, proxy_source)
         if results:
             print(f"Found {len(results)} results on {engine.capitalize()}.")
             break
         else:
             print(f"No results found on {engine.capitalize()} or request blocked.")
-        time.sleep(5)  # Add a delay between search engines
+        time.sleep(5)
+
     else:
         print("All search engines failed. Exiting.")
         return
