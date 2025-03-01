@@ -1,3 +1,4 @@
+# updated code by goju
 import requests
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
@@ -32,7 +33,7 @@ def get_random_proxy():
         # Fetch proxies from ProxyScrape
         response = requests.get("https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all")
         response.raise_for_status()
-        
+
         # Parse the list of proxies
         proxies = response.text.strip().split("\r\n")
         if proxies:
@@ -210,19 +211,18 @@ def format_dork(query, site=None, engine="google"):
         dork = f"{query}"
     else:
         dork = f"intext:{query}"  # Default to Google-style dork
-    
+
     if site:
         dork += f" site:{site}"
-    
+
     return dork
 
-def search_dorks(query, site=None, engine="google", proxy=None, retries=3):
+def search_dorks(query, site=None, engine="google", retries=3):
     """
-    Searches for dorks using the specified search engine.
-    Retries with a new proxy if the request fails.
+    Searches for dorks using the specified search engine, using proxies.
     """
     dork = format_dork(query, site, engine)
-    
+
     # Define search engine URLs
     search_urls = {
         "google": f"https://www.google.com/search?q={dork}",
@@ -306,28 +306,30 @@ def search_dorks(query, site=None, engine="google", proxy=None, retries=3):
         "wisenut": f"https://www.wisenut.com/search?q={dork}",
         "yebol": f"https://www.yebol.com/search?q={dork}"
     }
-    
+
     url = search_urls.get(engine, search_urls["google"])  # Default to Google if engine is not found
-    
+
     headers = {
         "User-Agent": ua.random  # Randomize User-Agent
     }
-    
+
     for attempt in range(retries):
+        # Fetch a new proxy on each retry
+        proxy = get_random_proxy()
         proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"} if proxy else None
-        
+
         try:
             print(f"Fetching results from {engine.capitalize()} using proxy: {proxy} (Attempt {attempt + 1})...")
             response = requests.get(url, headers=headers, proxies=proxies, timeout=15)  # Increased timeout
             response.raise_for_status()  # Raise an error for bad status codes
-            
+
             # Check if Google is showing a CAPTCHA
-            if engine == "google" and ("captcha" in response.text.lower() or "sorry" in response.text.lower()):
-                print("Google is showing a CAPTCHA. Switching to DuckDuckGo.")
+            if "captcha" in response.text.lower() or "sorry" in response.text.lower():
+                print(f"{engine.capitalize()} is showing a CAPTCHA. Switching to DuckDuckGo.")
                 return None
-            
+
             soup = BeautifulSoup(response.text, 'html.parser')
-            
+
             results = []
             if engine == "duckduckgo":
                 # Parse DuckDuckGo results
@@ -355,45 +357,44 @@ def search_dorks(query, site=None, engine="google", proxy=None, retries=3):
                     href = link.get('href')
                     if href and "http" in href:
                         results.append(href)
-            
+
             return results
         except requests.exceptions.RequestException as e:
             print(f"Attempt {attempt + 1} failed. Error: {e}")
             if attempt < retries - 1:
                 print("Fetching a new proxy and retrying...")
-                proxy = get_random_proxy()
-                print(f"Using new proxy: {proxy}")
                 time.sleep(5)  # Increased delay before retrying
             else:
                 print("Max retries reached. Giving up.")
                 return None
 
-def extract_form_data(url, proxy=None, retries=3):
+def extract_form_data(url, retries=3):
+    """
+    Extracts form data from a given URL without using a proxy.
+    """
     headers = {
         "User-Agent": ua.random  # Randomize User-Agent
     }
-    
+
     for attempt in range(retries):
-        proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"} if proxy else None
-        
         try:
-            print(f"Fetching form data using proxy: {proxy} (Attempt {attempt + 1})...")
-            response = requests.get(url, headers=headers, proxies=proxies, timeout=15)  # Increased timeout
+            print(f"Fetching form data from {url} (Attempt {attempt + 1})...")
+            response = requests.get(url, headers=headers, timeout=15)  # Increased timeout
             response.raise_for_status()
-            
+
             soup = BeautifulSoup(response.text, 'html.parser')
-            
+
             # Find the login form
             form = soup.find('form')
             if not form:
                 print("No form found on the page.")
                 return None
-            
+
             # Extract form action URL
             action = form.get('action')
             if not action:
                 action = url  # If no action, use the current URL
-            
+
             # Extract form fields
             inputs = form.find_all('input')
             form_data = {}
@@ -402,33 +403,33 @@ def extract_form_data(url, proxy=None, retries=3):
                 value = input_tag.get('value', '')
                 if name:
                     form_data[name] = value
-            
+
             return action, form_data
         except requests.exceptions.RequestException as e:
             print(f"Attempt {attempt + 1} failed. Error: {e}")
             if attempt < retries - 1:
-                print("Fetching a new proxy and retrying...")
-                proxy = get_random_proxy()
-                print(f"Using new proxy: {proxy}")
+                print("Retrying...")
                 time.sleep(5)  # Increased delay before retrying
             else:
                 print("Max retries reached. Giving up.")
                 return None
 
-def submit_login_form(action_url, form_data, proxy=None, retries=3):
+
+def submit_login_form(action_url, form_data, retries=3):
+    """
+    Submits the login form without using a proxy.
+    """
     headers = {
         "User-Agent": ua.random,  # Randomize User-Agent
         "Referer": action_url     # Set Referer to the form URL
     }
-    
+
     for attempt in range(retries):
-        proxies = {"http": f"http://{proxy}", "https": f"http://{proxy}"} if proxy else None
-        
         try:
-            print(f"Submitting form using proxy: {proxy} (Attempt {attempt + 1})...")
-            response = requests.post(action_url, data=form_data, headers=headers, proxies=proxies, timeout=15)  # Increased timeout
+            print(f"Submitting form to {action_url} (Attempt {attempt + 1})...")
+            response = requests.post(action_url, data=form_data, headers=headers, timeout=15)  # Increased timeout
             response.raise_for_status()
-            
+
             print(f"Response from POST {action_url}: {response.status_code}")
             print("Response Content:")
             print(response.text)
@@ -436,9 +437,7 @@ def submit_login_form(action_url, form_data, proxy=None, retries=3):
         except requests.exceptions.RequestException as e:
             print(f"Attempt {attempt + 1} failed. Error: {e}")
             if attempt < retries - 1:
-                print("Fetching a new proxy and retrying...")
-                proxy = get_random_proxy()
-                print(f"Using new proxy: {proxy}")
+                print("Retrying...")
                 time.sleep(5)  # Increased delay before retrying
             else:
                 print("Max retries reached. Giving up.")
@@ -447,15 +446,11 @@ def submit_login_form(action_url, form_data, proxy=None, retries=3):
 def main():
     query = "php debugbar"  # Base query without dork syntax
     site = input("Enter site (optional): ").strip()
-    
-    # Fetch a random proxy
-    proxy = get_random_proxy()
-    print(f"Using proxy: {proxy}")
-    
+
     # Try each search engine in order
     for engine in SUPPORTED_ENGINES:
         print(f"\nTrying {engine.capitalize()}...")
-        results = search_dorks(query, site, engine, proxy)
+        results = search_dorks(query, site, engine)  # Proxy is now managed inside the function
         if results:
             print(f"Found {len(results)} results on {engine.capitalize()}.")
             break
@@ -465,12 +460,12 @@ def main():
     else:
         print("All search engines failed. Exiting.")
         return
-    
+
     # Display search results
     print("\nSearch results:")
     for i, result in enumerate(results, 1):
         print(f"{i}. {result}")
-    
+
     # Let the user select a site
     try:
         choice = int(input("Enter the number of the site you want to explore: ")) - 1
@@ -479,27 +474,27 @@ def main():
     except (IndexError, ValueError):
         print("Invalid choice. Exiting.")
         return
-    
+
     # Extract form data from the selected site
-    result = extract_form_data(selected_url, proxy)
+    result = extract_form_data(selected_url)  # Proxy is NOT used here
     if not result:
         return
-    
+
     action_url, form_data = result
-    
+
     # Display form data
     print("\nForm Data:")
     for key, value in form_data.items():
         print(f"{key}: {value}")
-    
+
     # Update form data with user input
     for key in form_data:
         if key.lower() not in ['csrf', 'token', '_token']:  # Skip CSRF tokens
             form_data[key] = input(f"Enter value for {key}: ")
-    
+
     # Submit the form
     print("\nSubmitting the form...")
-    submit_login_form(action_url, form_data, proxy)
+    submit_login_form(action_url, form_data)  # Proxy is NOT used here
 
 if __name__ == "__main__":
     main()
