@@ -1,10 +1,10 @@
-#updated by goju3
 import requests
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 import random
 import time
-import re  # Import the regular expression module
+import re
+from urllib.parse import urlparse, parse_qs
 
 # Initialize fake_useragent
 ua = UserAgent()
@@ -331,7 +331,12 @@ def search_dorks(query, site=None, engine="google", use_proxy=True, proxy_source
                 for link in soup.find_all('a', class_='result__url'):
                     href = link.get('href')
                     if href:
-                        results.append(href)
+                        # Extract the actual URL from the uddg parameter
+                        parsed_url = urlparse(href)
+                        query_params = parse_qs(parsed_url.query)
+                        if 'uddg' in query_params:
+                            actual_url = query_params['uddg'][0]
+                            results.append(actual_url)
             elif engine == "google":
                 for link in soup.find_all('a'):
                     href = link.get('href')
