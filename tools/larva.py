@@ -1,8 +1,10 @@
+#updated by goju3
 import requests
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 import random
 import time
+import re  # Import the regular expression module
 
 # Initialize fake_useragent
 ua = UserAgent()
@@ -24,41 +26,226 @@ SUPPORTED_ENGINES = [
     "surfwax", "trendiction", "wisenut", "yebol"
 ]
 
-# Proxy functions (unchanged)
-def get_proxyscrape_proxies():
-    """Fetches proxies from ProxyScrape."""
-    try:
-        response = requests.get(
-            "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all",
-            timeout=10
-        )
-        response.raise_for_status()
-        proxies = response.text.strip().split("\r\n")
-        print(f"Fetched {len(proxies)} proxies from ProxyScrape.")
-        return proxies
-    except Exception as e:
-        print(f"Failed to fetch proxies from ProxyScrape. Error: {e}")
-        return []
+# Global proxies dictionary
+proxies = {
+    "proxyscrape": [],
+    "freeproxylists": [],
+    "file": []
+}
 
-def get_freeproxylists_proxies():
-    """Fetches proxies from FreeProxyLists."""
-    try:
-        response = requests.get("https://free-proxy-list.net/", headers={'User-Agent': ua.random}, timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
-        table = soup.find("table", {"id": "proxylisttable"})
-        proxies = []
-        for row in table.find_all("tr")[1:]:
-            cells = row.find_all("td")
-            if len(cells) >= 2:
-                ip = cells[0].text.strip()
-                port = cells[1].text.strip()
-                proxies.append(f"{ip}:{port}")
-        print(f"Fetched {len(proxies)} proxies from FreeProxyLists.")
-        return proxies
-    except Exception as e:
-        print(f"Failed to fetch proxies from FreeProxyLists. Error: {e}")
-        return []
+# Dork Formats
+DORK_FORMATS = {
+    "google": "intext:{query} intext:login",
+    "duckduckgo": "{query} login",
+    "bing": "{query} login",
+    "yahoo": "{query} login",
+    "ask": "{query} login",
+    "aol": "{query} login",
+    "yandex": "{query} login",
+    "baidu": "{query} login",
+    "ecosia": "{query} login",
+    "qwant": "{query} login",
+    "startpage": "{query} login",
+    "dogpile": "{query} login",
+    "swisscows": "{query} login",
+    "gibiru": "{query} login",
+    "metager": "{query} login",
+    "searx": "{query} login",
+    "mojeek": "{query} login",
+    "gigablast": "{query} login",
+    "exalead": "{query} login",
+    "lycos": "{query} login",
+    "hotbot": "{query} login",
+    "infospace": "{query} login",
+    "webcrawler": "{query} login",
+    "ixquick": "{query} login",
+    "sogou": "{query} login",
+    "naver": "{query} login",
+    "daum": "{query} login",
+    "rambler": "{query} login",
+    "sapo": "{query} login",
+    "virgilio": "{query} login",
+    "alice": "{query} login",
+    "najdi": "{query} login",
+    "seznam": "{query} login",
+    "biglobe": "{query} login",
+    "goo": "{query} login",
+    "onet": "{query} login",
+    "szukacz": "{query} login",
+    "pchome": "{query} login",
+    "kvasir": "{query} login",
+    "eniro": "{query} login",
+    "arcor": "{query} login",
+    "tiscali": "{query} login",
+    "mynet": "{query} login",
+    "ekolay": "{query} login",
+    "search": "{query} login",
+    "sweetsearch": "{query} login",
+    "millionshort": "{query} login",
+    "searchlock": "{query} login",
+    "givero": "{query} login",
+    "oscobo": "{query} login",
+    "zapmeta": "{query} login",
+    "entireweb": "{query} login",
+    "findwide": "{query} login",
+    "info": "{query} login",
+    "myallsearch": "{query} login",
+    "searchresults": "{query} login",
+    "searchtheweb": "{query} login",
+    "searchya": "{query} login",
+    "sputnik": "{query} login",
+    "teoma": "{query} login",
+    "wow": "{query} login",
+    "yippy": "{query} login",
+    "zoohoo": "{query} login",
+    "blekko": "{query} login",
+    "clusty": "{query} login",
+    "cuil": "{query} login",
+    "faroo": "{query} login",
+    "gazelle": "{query} login",
+    "guruji": "{query} login",
+    "hakia": "{query} login",
+    "icerocket": "{query} login",
+    "kosmix": "{query} login",
+    "mamma": "{query} login",
+    "peekyou": "{query} login",
+    "quintura": "{query} login",
+    "scour": "{query} login",
+    "surfwax": "{query} login",
+    "trendiction": "{query} login",
+    "wisenut": "{query} login",
+    "yebol": "{query} login"
+}
+
+# Search Engine URLs
+SEARCH_URLS = {
+    "google": "https://www.google.com/search?q={dork}",
+    "duckduckgo": "https://html.duckduckgo.com/html/?q={dork}",
+    "bing": "https://www.bing.com/search?q={dork}",
+    "yahoo": "https://search.yahoo.com/search?p={dork}",
+    "ask": "https://www.ask.com/web?q={dork}",
+    "aol": "https://search.aol.com/aol/search?q={dork}",
+    "yandex": "https://yandex.com/search/?text={dork}",
+    "baidu": "https://www.baidu.com/s?wd={dork}",
+    "ecosia": "https://www.ecosia.org/search?q={dork}",
+    "qwant": "https://www.qwant.com/?q={dork}",
+    "startpage": "https://www.startpage.com/do/search?q={dork}",
+    "dogpile": "https://www.dogpile.com/serp?q={dork}",
+    "swisscows": "https://swisscows.com/web?query={dork}",
+    "gibiru": "https://gibiru.com/results.html?q={dork}",
+    "metager": "https://metager.org/meta/meta.ger3?eingabe={dork}",
+    "searx": "https://searx.me/search?q={dork}",
+    "mojeek": "https://www.mojeek.com/search?q={dork}",
+    "gigablast": "https://www.gigablast.com/search?q={dork}",
+    "exalead": "https://www.exalead.com/search/web/results/?q={dork}",
+    "lycos": "https://search.lycos.com/web/?q={dork}",
+    "hotbot": "https://www.hotbot.com/search/web/?q={dork}",
+    "infospace": "https://www.infospace.com/serp?q={dork}",
+    "webcrawler": "https://www.webcrawler.com/serp?q={dork}",
+    "ixquick": "https://www.ixquick.com/do/search?q={dork}",
+    "sogou": "https://www.sogou.com/web?query={dork}",
+    "naver": "https://search.naver.com/search.naver?query={dork}",
+    "daum": "https://search.daum.net/search?q={dork}",
+    "rambler": "https://nova.rambler.ru/search?query={dork}",
+    "sapo": "https://pesquisa.sapo.pt/?q={dork}",
+    "virgilio": "https://ricerca.virgilio.it/ricerca?q={dork}",
+    "alice": "https://www.alice.it/search?q={dork}",
+    "najdi": "https://www.najdi.si/search?q={dork}",
+    "seznam": "https://search.seznam.cz/?q={dork}",
+    "biglobe": "https://search.biglobe.ne.jp/cgi-bin/search?q={dork}",
+    "goo": "https://search.goo.ne.jp/web.jsp?q={dork}",
+    "onet": "https://szukaj.onet.pl/?q={dork}",
+    "szukacz": "https://www.szukacz.pl/?q={dork}",
+    "pchome": "https://ecshweb.pchome.com.tw/search/v3.3/?q={dork}",
+    "kvasir": "https://www.kvasir.no/sok?q={dork}",
+    "eniro": "https://www.eniro.se/search?q={dork}",
+    "arcor": "https://www.arcor.de/suche/?q={dork}",
+    "tiscali": "https://search.tiscali.it/?q={dork}",
+    "mynet": "https://www.mynet.com/arama?q={dork}",
+    "ekolay": "https://www.ekolay.net/arama?q={dork}",
+    "search": "https://www.search.com/search?q={dork}",
+    "sweetsearch": "https://www.sweetsearch.com/search?q={dork}",
+    "millionshort": "https://millionshort.com/search?q={dork}",
+    "searchlock": "https://www.searchlock.com/search?q={dork}",
+    "givero": "https://www.givero.com/search?q={dork}",
+    "oscobo": "https://www.oscobo.com/search?q={dork}",
+    "zapmeta": "https://www.zapmeta.com/search?q={dork}",
+    "entireweb": "https://www.entireweb.com/search?q={dork}",
+    "findwide": "https://www.findwide.com/search?q={dork}",
+    "info": "https://www.info.com/serp?q={dork}",
+    "myallsearch": "https://www.myallsearch.com/search?q={dork}",
+    "searchresults": "https://www.searchresults.com/search?q={dork}",
+    "searchtheweb": "https://www.searchtheweb.com/search?q={dork}",
+    "searchya": "https://www.searchya.com/search?q={dork}",
+    "sputnik": "https://www.sputnik.ru/search?q={dork}",
+    "teoma": "https://www.teoma.com/web?q={dork}",
+    "wow": "https://www.wow.com/search?q={dork}",
+    "yippy": "https://www.yippy.com/search?q={dork}",
+    "zoohoo": "https://www.zoohoo.com/search?q={dork}",
+    "blekko": "https://www.blekko.com/search?q={dork}",
+    "clusty": "https://www.clusty.com/search?q={dork}",
+    "cuil": "https://www.cuil.com/search?q={dork}",
+    "faroo": "https://www.faroo.com/search?q={dork}",
+    "gazelle": "https://www.gazelle.com/search?q={dork}",
+    "guruji": "https://www.guruji.com/search?q={dork}",
+    "hakia": "https://www.hakia.com/search?q={dork}",
+    "icerocket": "https://www.icerocket.com/search?q={dork}",
+    "kosmix": "https://www.kosmix.com/search?q={dork}",
+    "mamma": "https://www.mamma.com/search?q={dork}",
+    "peekyou": "https://www.peekyou.com/search?q={dork}",
+    "quintura": "https://www.quintura.com/search?q={dork}",
+    "scour": "https://www.scour.com/search?q={dork}",
+    "surfwax": "https://www.surfwax.com/search?q={dork}",
+    "trendiction": "https://www.trendiction.com/search?q={dork}",
+    "wisenut": "https://www.wisenut.com/search?q={dork}",
+    "yebol": "https://www.yebol.com/search?q={dork}"
+}
+
+# Proxy functions (with retry mechanism)
+def get_proxyscrape_proxies(retries=3):
+    """Fetches proxies from ProxyScrape with retries."""
+    for attempt in range(retries):
+        try:
+            response = requests.get(
+                "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all",
+                timeout=10
+            )
+            response.raise_for_status()
+            proxies = response.text.strip().split("\r\n")
+            print(f"Fetched {len(proxies)} proxies from ProxyScrape.")
+            return proxies
+        except Exception as e:
+            print(f"Attempt {attempt + 1}: Failed to fetch proxies from ProxyScrape. Error: {e}")
+            if attempt < retries - 1:
+                time.sleep(5)
+            else:
+                print("Max retries reached. Giving up on ProxyScrape.")
+                return []
+
+def get_freeproxylists_proxies(retries=3):
+    """Fetches proxies from FreeProxyLists with retries."""
+    for attempt in range(retries):
+        try:
+            response = requests.get("https://free-proxy-list.net/", headers={'User-Agent': ua.random}, timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+            table = soup.find("table", {"id": "proxylisttable"})
+            proxies = []
+            for row in table.find_all("tr")[1:]:
+                cells = row.find_all("td")
+                if len(cells) >= 2:
+                    ip = cells[0].text.strip()
+                    port = cells[1].text.strip()
+                    proxies.append(f"{ip}:{port}")
+            print(f"Fetched {len(proxies)} proxies from FreeProxyLists.")
+            return proxies
+        except Exception as e:
+            print(f"Attempt {attempt + 1}: Failed to fetch proxies from FreeProxyLists. Error: {e}")
+            if attempt < retries - 1:
+                time.sleep(5)
+            else:
+                print("Max retries reached. Giving up on FreeProxyLists.")
+                return []
 
 def get_proxies_from_file(filepath="proxies.txt"):
     """Loads proxies from a text file."""
@@ -102,267 +289,18 @@ def get_random_proxy(proxy_source="proxyscrape"):
         print(f"No proxies available from {proxy_source}.")
         return None
 
-# Dork formatting and search functions (unchanged)
+# Dork formatting and search functions
 def format_dork(query, site=None, engine="google"):
-    """
-    Formats the dork based on the search engine.
-    """
-    if engine == "google":
-        dork = f"intext:{query}"
-    elif engine == "duckduckgo":
-        dork = f"{query}"
-    elif engine == "bing":
-        dork = f"{query}"
-    elif engine == "yahoo":
-        dork = f"{query}"
-    elif engine == "ask":
-        dork = f"{query}"
-    elif engine == "aol":
-        dork = f"{query}"
-    elif engine == "yandex":
-        dork = f"{query}"
-    elif engine == "baidu":
-        dork = f"{query}"
-    elif engine == "ecosia":
-        dork = f"{query}"
-    elif engine == "qwant":
-        dork = f"{query}"
-    elif engine == "startpage":
-        dork = f"{query}"
-    elif engine == "dogpile":
-        dork = f"{query}"
-    elif engine == "swisscows":
-        dork = f"{query}"
-    elif engine == "gibiru":
-        dork = f"{query}"
-    elif engine == "metager":
-        dork = f"{query}"
-    elif engine == "searx":
-        dork = f"{query}"
-    elif engine == "mojeek":
-        dork = f"{query}"
-    elif engine == "gigablast":
-        dork = f"{query}"
-    elif engine == "exalead":
-        dork = f"{query}"
-    elif engine == "lycos":
-        dork = f"{query}"
-    elif engine == "hotbot":
-        dork = f"{query}"
-    elif engine == "infospace":
-        dork = f"{query}"
-    elif engine == "webcrawler":
-        dork = f"{query}"
-    elif engine == "ixquick":
-        dork = f"{query}"
-    elif engine == "sogou":
-        dork = f"{query}"
-    elif engine == "naver":
-        dork = f"{query}"
-    elif engine == "daum":
-        dork = f"{query}"
-    elif engine == "rambler":
-        dork = f"{query}"
-    elif engine == "sapo":
-        dork = f"{query}"
-    elif engine == "virgilio":
-        dork = f"{query}"
-    elif engine == "alice":
-        dork = f"{query}"
-    elif engine == "najdi":
-        dork = f"{query}"
-    elif engine == "seznam":
-        dork = f"{query}"
-    elif engine == "biglobe":
-        dork = f"{query}"
-    elif engine == "goo":
-        dork = f"{query}"
-    elif engine == "onet":
-        dork = f"{query}"
-    elif engine == "szukacz":
-        dork = f"{query}"
-    elif engine == "pchome":
-        dork = f"{query}"
-    elif engine == "kvasir":
-        dork = f"{query}"
-    elif engine == "eniro":
-        dork = f"{query}"
-    elif engine == "arcor":
-        dork = f"{query}"
-    elif engine == "tiscali":
-        dork = f"{query}"
-    elif engine == "mynet":
-        dork = f"{query}"
-    elif engine == "ekolay":
-        dork = f"{query}"
-    elif engine == "search":
-        dork = f"{query}"
-    elif engine == "sweetsearch":
-        dork = f"{query}"
-    elif engine == "millionshort":
-        dork = f"{query}"
-    elif engine == "searchlock":
-        dork = f"{query}"
-    elif engine == "givero":
-        dork = f"{query}"
-    elif engine == "oscobo":
-        dork = f"{query}"
-    elif engine == "zapmeta":
-        dork = f"{query}"
-    elif engine == "entireweb":
-        dork = f"{query}"
-    elif engine == "findwide":
-        dork = f"{query}"
-    elif engine == "info":
-        dork = f"{query}"
-    elif engine == "myallsearch":
-        dork = f"{query}"
-    elif engine == "searchresults":
-        dork = f"{query}"
-    elif engine == "searchtheweb":
-        dork = f"{query}"
-    elif engine == "searchya":
-        dork = f"{query}"
-    elif engine == "sputnik":
-        dork = f"{query}"
-    elif engine == "teoma":
-        dork = f"{query}"
-    elif engine == "wow":
-        dork = f"{query}"
-    elif engine == "yippy":
-        dork = f"{query}"
-    elif engine == "zoohoo":
-        dork = f"{query}"
-    elif engine == "blekko":
-        dork = f"{query}"
-    elif engine == "clusty":
-        dork = f"{query}"
-    elif engine == "cuil":
-        dork = f"{query}"
-    elif engine == "faroo":
-        dork = f"{query}"
-    elif engine == "gazelle":
-        dork = f"{query}"
-    elif engine == "guruji":
-        dork = f"{query}"
-    elif engine == "hakia":
-        dork = f"{query}"
-    elif engine == "icerocket":
-        dork = f"{query}"
-    elif engine == "kosmix":
-        dork = f"{query}"
-    elif engine == "mamma":
-        dork = f"{query}"
-    elif engine == "peekyou":
-        dork = f"{query}"
-    elif engine == "quintura":
-        dork = f"{query}"
-    elif engine == "scour":
-        dork = f"{query}"
-    elif engine == "surfwax":
-        dork = f"{query}"
-    elif engine == "trendiction":
-        dork = f"{query}"
-    elif engine == "wisenut":
-        dork = f"{query}"
-    elif engine == "yebol":
-        dork = f"{query}"
-    else:
-        dork = f"intext:{query}"  # Default to Google-style dork
-
+    """Formats the dork based on the search engine."""
+    dork = DORK_FORMATS.get(engine, "intext:{query} intext:login").format(query=query)
     if site:
         dork += f" site:{site}"
-
     return dork
 
 def search_dorks(query, site=None, engine="google", use_proxy=True, proxy_source="proxyscrape", retries=3):
-    """
-    Searches for dorks using the specified search engine, with optional proxy support.
-    """
+    """Searches for dorks using the specified search engine, with optional proxy support."""
     dork = format_dork(query, site, engine)
-    search_urls = {
-        "google": f"https://www.google.com/search?q={dork}",
-        "duckduckgo": f"https://html.duckduckgo.com/html/?q={dork}",
-        "bing": f"https://www.bing.com/search?q={dork}",
-        "yahoo": f"https://search.yahoo.com/search?p={dork}",
-        "ask": f"https://www.ask.com/web?q={dork}",
-        "aol": f"https://search.aol.com/aol/search?q={dork}",
-        "yandex": f"https://yandex.com/search/?text={dork}",
-        "baidu": f"https://www.baidu.com/s?wd={dork}",
-        "ecosia": f"https://www.ecosia.org/search?q={dork}",
-        "qwant": f"https://www.qwant.com/?q={dork}",
-        "startpage": f"https://www.startpage.com/do/search?q={dork}",
-        "dogpile": f"https://www.dogpile.com/serp?q={dork}",
-        "swisscows": f"https://swisscows.com/web?query={dork}",
-        "gibiru": f"https://gibiru.com/results.html?q={dork}",
-        "metager": f"https://metager.org/meta/meta.ger3?eingabe={dork}",
-        "searx": f"https://searx.me/search?q={dork}",
-        "mojeek": f"https://www.mojeek.com/search?q={dork}",
-        "gigablast": f"https://www.gigablast.com/search?q={dork}",
-        "exalead": f"https://www.exalead.com/search/web/results/?q={dork}",
-        "lycos": f"https://search.lycos.com/web/?q={dork}",
-        "hotbot": f"https://www.hotbot.com/search/web/?q={dork}",
-        "infospace": f"https://www.infospace.com/serp?q={dork}",
-        "webcrawler": f"https://www.webcrawler.com/serp?q={dork}",
-        "ixquick": f"https://www.ixquick.com/do/search?q={dork}",
-        "sogou": f"https://www.sogou.com/web?query={dork}",
-        "naver": f"https://search.naver.com/search.naver?query={dork}",
-        "daum": f"https://search.daum.net/search?q={dork}",
-        "rambler": f"https://nova.rambler.ru/search?query={dork}",
-        "sapo": f"https://pesquisa.sapo.pt/?q={dork}",
-        "virgilio": f"https://ricerca.virgilio.it/ricerca?q={dork}",
-        "alice": f"https://www.alice.it/search?q={dork}",
-        "najdi": f"https://www.najdi.si/search?q={dork}",
-        "seznam": f"https://search.seznam.cz/?q={dork}",
-        "biglobe": f"https://search.biglobe.ne.jp/cgi-bin/search?q={dork}",
-        "goo": f"https://search.goo.ne.jp/web.jsp?q={dork}",
-        "onet": f"https://szukaj.onet.pl/?q={dork}",
-        "szukacz": f"https://www.szukacz.pl/?q={dork}",
-        "pchome": f"https://ecshweb.pchome.com.tw/search/v3.3/?q={dork}",
-        "kvasir": f"https://www.kvasir.no/sok?q={dork}",
-        "eniro": f"https://www.eniro.se/search?q={dork}",
-        "arcor": f"https://www.arcor.de/suche/?q={dork}",
-        "tiscali": f"https://search.tiscali.it/?q={dork}",
-        "mynet": f"https://www.mynet.com/arama?q={dork}",
-        "ekolay": f"https://www.ekolay.net/arama?q={dork}",
-        "search": f"https://www.search.com/search?q={dork}",
-        "sweetsearch": f"https://www.sweetsearch.com/search?q={dork}",
-        "millionshort": f"https://millionshort.com/search?q={dork}",
-        "searchlock": f"https://www.searchlock.com/search?q={dork}",
-        "givero": f"https://www.givero.com/search?q={dork}",
-        "oscobo": f"https://www.oscobo.com/search?q={dork}",
-        "zapmeta": f"https://www.zapmeta.com/search?q={dork}",
-        "entireweb": f"https://www.entireweb.com/search?q={dork}",
-        "findwide": f"https://www.findwide.com/search?q={dork}",
-        "info": f"https://www.info.com/serp?q={dork}",
-        "myallsearch": f"https://www.myallsearch.com/search?q={dork}",
-        "searchresults": f"https://www.searchresults.com/search?q={dork}",
-        "searchtheweb": f"https://www.searchtheweb.com/search?q={dork}",
-        "searchya": f"https://www.searchya.com/search?q={dork}",
-        "sputnik": f"https://www.sputnik.ru/search?q={dork}",
-        "teoma": f"https://www.teoma.com/web?q={dork}",
-        "wow": f"https://www.wow.com/search?q={dork}",
-        "yippy": f"https://www.yippy.com/search?q={dork}",
-        "zoohoo": f"https://www.zoohoo.com/search?q={dork}",
-        "blekko": f"https://www.blekko.com/search?q={dork}",
-        "clusty": f"https://www.clusty.com/search?q={dork}",
-        "cuil": f"https://www.cuil.com/search?q={dork}",
-        "faroo": f"https://www.faroo.com/search?q={dork}",
-        "gazelle": f"https://www.gazelle.com/search?q={dork}",
-        "guruji": f"https://www.guruji.com/search?q={dork}",
-        "hakia": f"https://www.hakia.com/search?q={dork}",
-        "icerocket": f"https://www.icerocket.com/search?q={dork}",
-        "kosmix": f"https://www.kosmix.com/search?q={dork}",
-        "mamma": f"https://www.mamma.com/search?q={dork}",
-        "peekyou": f"https://www.peekyou.com/search?q={dork}",
-        "quintura": f"https://www.quintura.com/search?q={dork}",
-        "scour": f"https://www.scour.com/search?q={dork}",
-        "surfwax": f"https://www.surfwax.com/search?q={dork}",
-        "trendiction": f"https://www.trendiction.com/search?q={dork}",
-        "wisenut": f"https://www.wisenut.com/search?q={dork}",
-        "yebol": f"https://www.yebol.com/search?q={dork}"
-    }
-    url = search_urls.get(engine, search_urls["google"])
+    url = SEARCH_URLS.get(engine, SEARCH_URLS["google"]).format(dork=dork)
 
     headers = {
         "User-Agent": ua.random
@@ -489,9 +427,27 @@ def extract_sensitive_data(html):
         elif "username" in input_name or "user" in input_name:
             sensitive_data["username"] = input_value
 
+    # Use regular expressions to find patterns resembling emails, usernames, and passwords
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    username_pattern = r'\b[A-Za-z0-9_-]{3,16}\b'
+    password_pattern = r'\b(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&]{8,}\b'  # Example pattern: min 8 chars, 1 letter, 1 number
+
+    # Find all matches in the HTML source
+    emails = re.findall(email_pattern, html)
+    usernames = re.findall(username_pattern, html)
+    passwords = re.findall(password_pattern, html)
+
+    # Add the found patterns to the sensitive_data dictionary
+    if emails:
+        sensitive_data["emails_found"] = emails
+    if usernames:
+        sensitive_data["usernames_found"] = usernames
+    if passwords:
+        sensitive_data["passwords_found"] = passwords
+
     return sensitive_data
 
-# Main function (unchanged)
+# Main function
 def main():
     global proxies
     query = "php debugbar"  # Base query without dork syntax
