@@ -41,6 +41,7 @@ def mainzap():
     (3) SQLMAP
     (4) SPIDER
     (5) LARVA
+    (6) DEFACE LISTER
     (X) UPDATE
     ''')
 
@@ -50,7 +51,18 @@ def choice():
 
     if cho == '1':
         try:
-            os.system('python tools/astro.py')
+            print('''
+            (1) REVERSE IP(only 1 domain)
+            (2) REVERSE IP(using txt lists)
+            (3) SCANNER
+            ''')
+            echo = input('choose: ').strip().lower()
+            if echo == '1': 
+                os.system('python tools/astro.py')
+            elif echo == '2':
+                os.system('python tools/rever.py')
+            elif echo == '3':
+                os.system('python tools/mass-web-ip-scanner.py')
         except KeyboardInterrupt:
             clear()
             print('session interrupted')
@@ -84,6 +96,8 @@ def choice():
         os.system('python tools/spider.py')
     elif cho == '5':
         os.system('python tools/larva.py')
+    elif cho == '6':
+        os.system('python tools/mass-deface-lister.py')
     elif cho == 'x':
         pull_latest_changes()
     else:
