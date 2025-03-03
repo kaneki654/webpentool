@@ -16,3 +16,6 @@ def make():
   os.system('threading')
   os.system('concurrent')
   os.system('datetime')
+
+if __name__ == "__main__":
+  make()
