@@ -20,10 +20,10 @@ SUPPORTED_ENGINES = [
     "eniro", "arcor", "tiscali", "mynet", "ekolay", "search", "sweetsearch",
     "millionshort", "searchlock", "givero", "oscobo", "zapmeta", "entireweb",
     "findwide", "info", "myallsearch", "searchresults", "searchtheweb",
-    "searchya", "sputnik", "teoma", "wow", "yippy", "zapmeta", "zoohoo",
-    "blekko", "clusty", "cuil", "faroo", "gazelle", "guruji", "hakia",
-    "icerocket", "kosmix", "mamma", "peekyou", "quintura", "scour", "sputnik",
-    "surfwax", "trendiction", "wisenut", "yebol"
+    "searchya", "sputnik", "teoma", "wow", "yippy", "zoohoo", "blekko",
+    "clusty", "cuil", "faroo", "gazelle", "guruji", "hakia", "icerocket",
+    "kosmix", "mamma", "peekyou", "quintura", "scour", "surfwax", "trendiction",
+    "wisenut", "yebol"
 ]
 
 # Global proxies dictionary
